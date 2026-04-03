@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIGOL - Colorful Interactive Game of Life</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            user-select: none;
+            max-height: 95vh;
+            overflow-y: auto;
+            width: 260px;
+        }
+        
+        .tool-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .tool-grid label {
+            display: flex;
+            align-items: center;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+        .tool-grid label:hover { background: #e9ecef; }
+        .tool-grid input[type="radio"] { display: none; }
+        .tool-grid input[type="radio"]:checked + span { font-weight: bold; }
+        .tool-grid label:has(input[type="radio"]:checked) {
+            background: #cce5ff;
+            border-color: #b8daff;
+        }
+
+        .options-group { background: #f8f9fa; padding: 6px 10px; border-radius: 4px; margin-bottom: 5px; font-size: 0.85em; border: 1px solid #e9ecef; }
+
+        #ui button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        #ui button:hover { background: #0056b3; }
+        #ui button.secondary { background: #6c757d; margin-top: 5px; }
+        #ui button.secondary:hover { background: #5a6268; }
+        #ui button.danger { background: #dc3545; margin-top: 5px; }
+        #ui button.danger:hover { background: #c82333; }
+        #ui hr { border: 0; border-top: 1px solid #ccc; margin: 15px 0; }
+        
+        .rule-group { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+        .rule-group input { width: 45px; text-align: center; border: 1px solid #ccc; border-radius: 3px; padding: 2px; font-weight: bold;}
+
+        /* Estilos de Cor */
+        .color-picker-group { background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #e9ecef; }
+        .color-preview { width: 100%; height: 20px; border-radius: 4px; margin-bottom: 5px; border: 1px solid #ccc; }
+        input[type=range] { width: 100%; }
+
+        /* Estilos do Modal About */
+        #aboutBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ccc;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 100;
+            transition: background 0.2s;
+        }
+        #aboutBtn:hover { background: #e9ecef; }
+        
+        #aboutModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(3px);
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            line-height: 1.6;
+            position: relative;
+        }
+        .modal-content h1 { margin-top: 0; color: #007bff; margin-bottom: 5px; }
+        .modal-content h2 { font-size: 1.2em; margin-top: 25px; border-bottom: 2px solid #eee; padding-bottom: 5px; color: #333; }
+        .modal-content p, .modal-content li { color: #555; }
+        .close-btn {
+            position: absolute; top: 15px; right: 20px;
+            font-size: 28px; cursor: pointer; color: #999;
+            line-height: 1;
+        }
+        .close-btn:hover { color: #333; }
+    </style>
+</head>
+<body>
+
+    <button id="aboutBtn" onclick="openAbout()">ℹ️ Sobre o CIGOL</button>
+
+    <div id="aboutModal" onclick="closeModalOutside(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="close-btn" onclick="closeAbout()">&times;</span>
+            <h1>CIGOL</h1>
+            <p style="margin-top:0; font-size: 1.1em;"><strong>Colorful Interactive Game of Life</strong></p>
+            
+            <h2>O que é o Jogo da Vida?</h2>
+            <p>Criado em 1970 pelo matemático britânico <strong>John Horton Conway</strong>, não é um jogo no sentido tradicional, mas um "autómato celular" de zero jogadores. A "vida" ou "morte" de células numa grelha depende estritamente do número de vizinhos. É uma simulação incrivelmente poderosa (Turing Completa), provando que sistemas de alta complexidade podem emergir de regras extremamente simples.</p>
+            
+            <h2>Porquê as constantes [2, 2, 3, 4, 3]?</h2>
+            <p>Conway passou meses a testar regras manualmente num tabuleiro de Go. Ele procurava o que chamamos de <strong>"Borda do Caos"</strong>. Se as regras fossem muito generosas (ex: nascer com 2 vizinhos), a matriz rapidamente se convertia num bloco sólido e estático. Se fossem muito severas (ex: exigir 4 vizinhos para sobreviver), qualquer padrão morria de imediato.</p>
+            <p>A combinação mágica de <em>nascer com exatamente 3</em> e <em>sobreviver com 2 ou 3</em> permite o equilíbrio perfeito entre extinção e explosão demográfica, possibilitando que "estruturas de informação" (como os famosos <i>Gliders</i>) naveguem pelo tecido do espaço sem se desintegrarem.</p>
+            
+            <h2>O Contributo de <i>Amatsukan</i></h2>
+            <p>O <strong>CIGOL</strong> foi desenvolvido por <em>Amatsukan</em> com o propósito de tornar este conceito matemático formidável muito mais acessível, interativo e visualmente atrativo para demonstrações, experimentações e aulas. Esta versão traz como inovações:</p>
+            <ul>
+                <li><strong>Herança Genética Colorida:</strong> Células "filhas" nascem combinando o ADN (cores) dos seus "pais" através de cálculos matemáticos cíclicos (Matiz HSL), com opção de mutação, criando rastos arco-íris fascinantes.</li>
+                <li><strong>Ferramentas de Criação:</strong> Interface estilo <i>Paint</i> com spray, formas geométricas, balde de tinta e preenchimento sólido.</li>
+                <li><strong>Laboratório em Tempo Real:</strong> A maior valia didática desta ferramenta é permitir a manipulação dos parâmetros de Conway <u>enquanto a simulação roda</u>. Isto possibilita que alunos e entusiastas testem e sintam em primeira mão o colapso do universo, entendendo na prática a genialidade por trás do equilíbrio matemático das constantes originais.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="ui">
+        <strong>🛠️ Ferramentas:</strong><br><br>
+        <div class="tool-grid">
+            <label><input type="radio" name="tool" value="draw" checked onchange="updateCursor()"> <span>🖌️ Pincel</span></label>
+            <label><input type="radio" name="tool" value="pan" onchange="updateCursor()"> <span>🤚 Mover</span></label>
+            <label><input type="radio" name="tool" value="rect" onchange="updateCursor()"> <span>🔲 Retângulo</span></label>
+            <label><input type="radio" name="tool" value="circle" onchange="updateCursor()"> <span>⭕ Círculo</span></label>
+            <label><input type="radio" name="tool" value="spray" onchange="updateCursor()"> <span>💦 Spray</span></label>
+            <label><input type="radio" name="tool" value="bucket" onchange="updateCursor()"> <span>🪣 Balde</span></label>
+        </div>
+
+        <div class="options-group">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" id="isSolid" checked> Preencher Formas (Sólido)
+            </label>
+        </div>
+
+        <div class="color-picker-group">
+            <strong>🎨 Cor Atual (Matiz):</strong>
+            <div id="colorPreview" class="color-preview" style="background: hsl(0, 100%, 50%);"></div>
+            <input type="range" id="colorHue" min="0" max="360" value="0" oninput="updateColorPreview()">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 0.85em;">
+                <input type="checkbox" id="mutateColor" checked> 🌈 Mutação de Cor Ativa
+            </label>
+        </div>
+        
+        <small>💡 <b>Botão direito:</b> Move a câmara a qualquer momento.</small>
+        
+        <hr>
+        <button id="playBtn" onclick="togglePlay()">▶️ Iniciar Simulação</button>
+        <button class="secondary" onclick="nextGeneration()">⏭️ Avançar 1 Passo</button>
+        <button class="danger" onclick="clearGrid()">🗑️ Limpar Tudo</button>
+
+        <hr>
+        <strong>⚙️ Regras (Conway):</strong><br>
+        <div class="options-group" style="padding-top: 8px;">
+            <div class="rule-group"><span title="Morre se <">💀 Subpopulação (&lt;)</span> <input type="number" id="valSubpop" value="2" min="0" max="8"></div>
+            <div class="rule-group"><span title="Sobrevive se >=">🛡️ Sobrevive Mín (&ge;)</span> <input type="number" id="valSurvMin" value="2" min="0" max="8"></div>
+            <div class="rule-group"><span title="Sobrevive se <=">🛡️ Sobrevive Máx (&le;)</span> <input type="number" id="valSurvMax" value="3" min="0" max="8"></div>
+            <div class="rule-group"><span title="Morre se >=">💥 Superpopulação (&ge;)</span> <input type="number" id="valOverpop" value="4" min="0" max="8"></div>
+            <div class="rule-group"><span title="Nasce se =">✨ Nascimento Exato (=)</span> <input type="number" id="valBirth" value="3" min="0" max="8"></div>
+        </div>
+    </div>
+
+    <canvas id="gridCanvas"></canvas>
+
+    <script>
+        // Funções do Modal About
+        function openAbout() { document.getElementById('aboutModal').style.display = 'flex'; }
+        function closeAbout() { document.getElementById('aboutModal').style.display = 'none'; }
+        function closeModalOutside(event) { if(event.target === document.getElementById('aboutModal')) closeAbout(); }
+
+        const canvas = document.getElementById('gridCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let currentHue = 0;
+        function updateColorPreview() {
+            currentHue = parseInt(document.getElementById('colorHue').value);
+            document.getElementById('colorPreview').style.background = `hsl(${currentHue}, 100%, 50%)`;
+        }
+
+        function updateCursor() {
+            const tool = document.querySelector('input[name="tool"]:checked').value;
+            const cursors = {
+                'draw': 'crosshair',
+                'pan': 'grab',
+                'rect': 'crosshair',
+                'circle': 'crosshair',
+                'spray': 'crosshair',
+                'bucket': 'cell'
+            };
+            canvas.style.cursor = cursors[tool];
+        }
+        updateCursor();
+
+        let cameraX = 0, cameraY = 0, zoom = 40;
+        const MIN_ZOOM = 2, MAX_ZOOM = 200; 
+
+        let blackCells = new Map(); // Transformado num Map para guardar a cor (Hue)
+        let previewCells = new Set(); // Células de pré-visualização (ghosting) para formas
+        const MAX_CELLS = 100000;
+
+        let isRunning = false;
+        let simulationInterval = null;
+        const tickRate = 100;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        // --- Renderização ---
+        function draw() {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const startX = Math.floor(-cameraX / zoom);
+            const endX = Math.floor((canvas.width - cameraX) / zoom);
+            const startY = Math.floor(-cameraY / zoom);
+            const endY = Math.floor((canvas.height - cameraY) / zoom);
+
+            // Desenha as células reais com as suas respetivas cores
+            for (let x = startX; x <= endX; x++) {
+                for (let y = startY; y <= endY; y++) {
+                    const key = `${x},${y}`;
+                    if (blackCells.has(key)) {
+                        const hue = blackCells.get(key);
+                        ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+                        ctx.fillRect(x * zoom + cameraX, y * zoom + cameraY, zoom, zoom);
+                    }
+                }
+            }
+
+            // Desenha a pré-visualização (semi-transparente)
+            if (previewCells.size > 0) {
+                // Vermelho se for para apagar, a cor selecionada se for para desenhar
+                ctx.fillStyle = drawAction === 'delete' ? "rgba(220, 53, 69, 0.6)" : `hsla(${currentHue}, 100%, 50%, 0.6)`;
+                for (const cell of previewCells) {
+                    const [xStr, yStr] = cell.split(',');
+                    const x = parseInt(xStr, 10);
+                    const y = parseInt(yStr, 10);
+                    if (x >= startX && x <= endX && y >= startY && y <= endY) {
+                        ctx.fillRect(x * zoom + cameraX, y * zoom + cameraY, zoom, zoom);
+                    }
+                }
+            }
+
+            if (zoom > 5) {
+                ctx.strokeStyle = "#dddddd";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let x = startX; x <= endX + 1; x++) {
+                    let screenX = Math.floor(x * zoom + cameraX);
+                    ctx.moveTo(screenX, 0); ctx.lineTo(screenX, canvas.height);
+                }
+                for (let y = startY; y <= endY + 1; y++) {
+                    let screenY = Math.floor(y * zoom + cameraY);
+                    ctx.moveTo(0, screenY); ctx.lineTo(canvas.width, screenY);
+                }
+                ctx.stroke();
+            }
+        }
+
+        // --- Geradores de Formas ---
+        function generateRect(x0, y0, x1, y1, solid) {
+            const points = [];
+            const minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
+            const minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    if (solid || x === minX || x === maxX || y === minY || y === maxY) {
+                        points.push(`${x},${y}`);
+                    }
+                }
+            }
+            return points;
+        }
+
+        function generateCircle(cx, cy, r, solid) {
+            const points = [];
+            for (let x = -r; x <= r; x++) {
+                for (let y = -r; y <= r; y++) {
+                    const dist = Math.sqrt(x*x + y*y);
+                    if (solid && dist <= r) {
+                        points.push(`${cx+x},${cy+y}`);
+                    } else if (!solid && Math.abs(dist - r) <= 0.6) {
+                        points.push(`${cx+x},${cy+y}`);
+                    }
+                }
+            }
+            return points;
+        }
+
+        function floodFill(startX, startY, isErasing) {
+            const action = isErasing ? 'delete' : 'add';
+            const queue = [[startX, startY]];
+            const visited = new Set([`${startX},${startY}`]);
+            const cellsToModify = [];
+            
+            let safetyLimit = 30000; // Limite de células modificadas por clique do balde
+
+            while (queue.length > 0 && safetyLimit > 0) {
+                const [x, y] = queue.shift();
+                cellsToModify.push(`${x},${y}`);
+                safetyLimit--;
+
+                const neighbors = [[x, y-1], [x, y+1], [x-1, y], [x+1, y]];
+                for (const [nx, ny] of neighbors) {
+                    const nKey = `${nx},${ny}`;
+                    if (!visited.has(nKey)) {
+                        const nIsAlive = blackCells.has(nKey);
+                        // Se estamos a apagar, espalha-se pelas células vivas. Se a desenhar, pelas vazias.
+                        if ((isErasing && nIsAlive) || (!isErasing && !nIsAlive)) {
+                            visited.add(nKey);
+                            queue.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+
+            for (const key of cellsToModify) {
+                if (action === 'add') {
+                    if (blackCells.size < MAX_CELLS) blackCells.set(key, currentHue);
+                } else {
+                    blackCells.delete(key);
+                }
+            }
+            draw();
+        }
+
+        function applySpray(gridX, gridY) {
+            const radius = 4;
+            const density = 8;
+            for (let i = 0; i < density; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const r = Math.random() * radius;
+                const sx = Math.floor(gridX + Math.cos(angle) * r);
+                const sy = Math.floor(gridY + Math.sin(angle) * r);
+                const cellKey = `${sx},${sy}`;
+                
+                if (drawAction === 'add') {
+                    if (blackCells.size < MAX_CELLS) blackCells.set(cellKey, currentHue);
+                } else {
+                    blackCells.delete(cellKey);
+                }
+            }
+            draw();
+        }
+
+        function paintLine(x0, y0, x1, y1, action) {
+            let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+            let sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
+            while (true) {
+                const cellKey = `${x0},${y0}`;
+                if (action === 'add') {
+                    if (blackCells.size < MAX_CELLS) blackCells.set(cellKey, currentHue);
+                } else {
+                    blackCells.delete(cellKey);
+                }
+                if (x0 === x1 && y0 === y1) break;
+                let e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; x0 += sx; }
+                if (e2 < dx) { err += dx; y0 += sy; }
+            }
+        }
+
+        // --- Interação ---
+        let isDragging = false;
+        let isDrawing = false;
+        let drawAction = 'add';
+        let lastGridX = null, lastGridY = null;
+        let lastMouseX = 0, lastMouseY = 0;
+        let sprayInterval = null;
+
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        canvas.addEventListener('mousedown', (e) => {
+            const tool = document.querySelector('input[name="tool"]:checked').value;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (tool === 'pan' || e.button === 1 || e.button === 2) {
+                isDragging = true;
+                lastMouseX = e.clientX; lastMouseY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+            } 
+            else if (e.button === 0) {
+                isDrawing = true;
+                const gridX = Math.floor((mouseX - cameraX) / zoom);
+                const gridY = Math.floor((mouseY - cameraY) / zoom);
+                const cellKey = `${gridX},${gridY}`;
+                
+                // Define se a ação vai pintar(add) ou apagar(delete) baseado no clique inicial
+                drawAction = blackCells.has(cellKey) ? 'delete' : 'add';
+                lastGridX = gridX; lastGridY = gridY;
+
+                if (tool === 'draw') {
+                    if (drawAction === 'add' && blackCells.size < MAX_CELLS) blackCells.set(cellKey, currentHue);
+                    else if (drawAction === 'delete') blackCells.delete(cellKey);
+                } else if (tool === 'bucket') {
+                    floodFill(gridX, gridY, drawAction === 'delete');
+                } else if (tool === 'spray') {
+                    applySpray(gridX, gridY);
+                    // Continua a deitar spray enquanto prime o rato
+                    sprayInterval = setInterval(() => applySpray(lastGridX, lastGridY), 50);
+                }
+                draw();
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            const tool = document.querySelector('input[name="tool"]:checked').value;
+            isDragging = false;
+            
+            if (isDrawing && (tool === 'rect' || tool === 'circle')) {
+                // Efetiva a forma pre-visualizada na matriz real
+                for(const cell of previewCells) {
+                    if (drawAction === 'add' && blackCells.size < MAX_CELLS) blackCells.set(cell, currentHue);
+                    else if (drawAction === 'delete') blackCells.delete(cell);
+                }
+                previewCells.clear();
+                draw();
+            }
+
+            isDrawing = false;
+            if (sprayInterval) { clearInterval(sprayInterval); sprayInterval = null; }
+            updateCursor();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const tool = document.querySelector('input[name="tool"]:checked').value;
+            
+            if (isDragging) {
+                cameraX += e.clientX - lastMouseX;
+                cameraY += e.clientY - lastMouseY;
+                lastMouseX = e.clientX; lastMouseY = e.clientY;
+                draw();
+            } else if (isDrawing) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                const gridX = Math.floor((mouseX - cameraX) / zoom);
+                const gridY = Math.floor((mouseY - cameraY) / zoom);
+                
+                if (tool === 'draw' && (gridX !== lastGridX || gridY !== lastGridY)) {
+                    paintLine(lastGridX, lastGridY, gridX, gridY, drawAction);
+                    lastGridX = gridX; lastGridY = gridY;
+                    draw();
+                } else if (tool === 'rect' || tool === 'circle') {
+                    previewCells.clear();
+                    const isSolid = document.getElementById('isSolid').checked;
+                    let points = [];
+                    
+                    if (tool === 'rect') {
+                        points = generateRect(lastGridX, lastGridY, gridX, gridY, isSolid);
+                    } else if (tool === 'circle') {
+                        const r = Math.round(Math.sqrt((gridX - lastGridX)**2 + (gridY - lastGridY)**2));
+                        points = generateCircle(lastGridX, lastGridY, r, isSolid);
+                    }
+                    
+                    points.forEach(p => previewCells.add(p));
+                    draw();
+                } else if (tool === 'spray') {
+                    lastGridX = gridX; lastGridY = gridY; // Atualiza ponto pro intervalo
+                }
+            }
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const zoomAmount = e.deltaY > 0 ? 0.9 : 1.1;
+            let newZoom = zoom * zoomAmount;
+            if (newZoom < MIN_ZOOM) newZoom = MIN_ZOOM;
+            if (newZoom > MAX_ZOOM) newZoom = MAX_ZOOM;
+
+            cameraX = mouseX - (mouseX - cameraX) * (newZoom / zoom);
+            cameraY = mouseY - (mouseY - cameraY) * (newZoom / zoom);
+            zoom = newZoom; draw();
+        }, { passive: false });
+
+        // --- LÓGICA: Jogo da Vida ---
+        function togglePlay() {
+            isRunning = !isRunning;
+            const btn = document.getElementById('playBtn');
+            if (isRunning) {
+                btn.innerHTML = "⏸️ Pausar Simulação";
+                btn.style.background = "#28a745";
+                simulationInterval = setInterval(nextGeneration, tickRate);
+            } else {
+                btn.innerHTML = "▶️ Iniciar Simulação";
+                btn.style.background = "#007bff";
+                clearInterval(simulationInterval);
+            }
+        }
+
+        function clearGrid() {
+            if (isRunning) togglePlay();
+            blackCells.clear(); previewCells.clear(); draw();
+        }
+
+        function nextGeneration() {
+            const neighborData = new Map(); // Guarda agora a contagem e um array com as cores dos vizinhos
+            
+            for (const [cellKey, cellHue] of blackCells.entries()) {
+                const [xStr, yStr] = cellKey.split(',');
+                const x = parseInt(xStr, 10), y = parseInt(yStr, 10);
+
+                if (!neighborData.has(cellKey)) neighborData.set(cellKey, { count: 0, hues: [] });
+
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nKey = `${x + dx},${y + dy}`;
+                        let data = neighborData.get(nKey);
+                        if (!data) {
+                            data = { count: 0, hues: [] };
+                            neighborData.set(nKey, data);
+                        }
+                        data.count++;
+                        data.hues.push(cellHue);
+                    }
+                }
+            }
+
+            const nextGen = new Map();
+            const subpop = parseInt(document.getElementById('valSubpop').value);
+            const survMin = parseInt(document.getElementById('valSurvMin').value);
+            const survMax = parseInt(document.getElementById('valSurvMax').value);
+            const overpop = parseInt(document.getElementById('valOverpop').value);
+            const birth = parseInt(document.getElementById('valBirth').value);
+            const mutate = document.getElementById('mutateColor').checked;
+
+            for (const [cellKey, data] of neighborData.entries()) {
+                const isAlive = blackCells.has(cellKey);
+                if (isAlive) {
+                    // Célula sobrevive e mantém a sua cor original
+                    if (data.count >= survMin && data.count <= survMax && data.count >= subpop && data.count < overpop) {
+                        nextGen.set(cellKey, blackCells.get(cellKey)); 
+                    }
+                } else {
+                    // Célula nasce: calcula a Média Circular das cores dos vizinhos ("pais")
+                    if (data.count === birth) {
+                        let sumSin = 0, sumCos = 0;
+                        for (let h of data.hues) {
+                            let rad = h * Math.PI / 180;
+                            sumSin += Math.sin(rad);
+                            sumCos += Math.cos(rad);
+                        }
+                        let avgRad = Math.atan2(sumSin, sumCos);
+                        let avgHue = Math.round((avgRad * 180 / Math.PI + 360) % 360);
+                        
+                        // Aplica uma ligeira mutação genética ao nascer para criar efeitos visuais cíclicos
+                        if (mutate) avgHue = (avgHue + 2) % 360;
+
+                        nextGen.set(cellKey, avgHue); 
+                    }
+                }
+            }
+
+            if (nextGen.size > MAX_CELLS) {
+                if (isRunning) togglePlay();
+                console.warn("Limite de segurança atingido."); return;
+            }
+            blackCells = nextGen; draw();
+        }
+
+        resize();
+    </script>
+</body>
+</html>
